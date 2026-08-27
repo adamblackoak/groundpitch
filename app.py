@@ -38,6 +38,10 @@ def _infer_subject(pages: list[dict], filename: str) -> str:
 st.set_page_config(page_title="GroundPitch", page_icon="🧾", layout="wide")
 st.title("GroundPitch")
 st.caption("Marketing copy that cannot outrun its receipts.")
+st.markdown(
+    "**Two evidence boundaries:** Nutrient DWS establishes source support first; "
+    "SerpApi checks current public context only for claims that survive that gate."
+)
 
 with st.sidebar:
     st.header("Evidence boundaries")
@@ -75,10 +79,13 @@ with st.sidebar:
         help="For example a product or company name. If blank, GroundPitch infers one from the source.",
     )
     force_all_web = st.checkbox(
-        "Web-check every claim",
+        "Web-check every eligible claim",
         value=False,
         disabled=not use_serpapi,
-        help="Normally only time-sensitive, comparative or public-state claims are searched.",
+        help=(
+            "Even in this mode, source-rejected claims stop before SerpApi. "
+            "Search cannot rescue unsupported copy."
+        ),
     )
 
     st.markdown(
@@ -151,22 +158,27 @@ if run:
     decisions = gate_claims(claims, pages)
 
     live_scans = {}
+    live_skips = {}
     if use_serpapi:
         if not serpapi_key.strip():
             st.error("SerpApi live-context mode is enabled but SERPAPI_API_KEY is missing.")
             st.stop()
 
         subject = search_subject.strip() or _infer_subject(pages, filename)
-        claims_to_scan = [
-            decision.claim
-            for decision in decisions
-            if force_all_web or claim_requires_live_context(decision.claim)
-        ]
+        claims_to_scan = []
+        for decision in decisions:
+            if decision.disposition == "REJECT":
+                live_skips[decision.claim] = "STOPPED_AT_SOURCE_EVIDENCE_GATE"
+                continue
+            if force_all_web or claim_requires_live_context(decision.claim):
+                claims_to_scan.append(decision.claim)
+            else:
+                live_skips[decision.claim] = "LIVE_CONTEXT_NOT_REQUIRED"
 
         if claims_to_scan:
             try:
                 with st.spinner(
-                    f"SerpApi is checking live context for {len(claims_to_scan)} claim(s)..."
+                    f"SerpApi is checking live context for {len(claims_to_scan)} eligible claim(s)..."
                 ):
                     for claim in claims_to_scan:
                         live_scans[claim] = search_claim_context(
@@ -186,12 +198,14 @@ if run:
         "pages": pages,
         "decisions": [d.to_dict() for d in decisions],
         "live_scans": live_scans,
+        "live_skips": live_skips,
     }
 
 run_state = st.session_state.get("gp_run")
 if run_state:
     decisions = run_state["decisions"]
     live_scans = run_state.get("live_scans", {})
+    live_skips = run_state.get("live_skips", {})
     counts = {
         "ADMIT": sum(d["disposition"] == "ADMIT" for d in decisions),
         "REVIEW": sum(d["disposition"] == "REVIEW" for d in decisions),
@@ -218,7 +232,10 @@ if run_state:
             expanded=(disposition != "ADMIT" or decision["claim"] in live_scans),
         ):
             st.write(decision["reason"])
-            st.caption(f"Source-evidence confidence: {decision['confidence']:.2f}")
+            st.caption(
+                f"Source-evidence support score: {decision['confidence']:.2f} "
+                "(heuristic, not calibrated probability)"
+            )
 
             if decision["unsupported_numbers"]:
                 st.write("Unsupported numbers:", ", ".join(decision["unsupported_numbers"]))
@@ -265,15 +282,21 @@ if run_state:
                         "is not evidence that the claim is false."
                     )
 
-                if disposition != "REJECT":
-                    live_context_reviews[decision["claim"]] = st.selectbox(
-                        "Live-context human decision",
-                        ["PENDING", "APPROVE", "REJECT"],
-                        key=f"web-review-{i}",
-                        help=(
-                            "Search results are context, not authority. Explicit human "
-                            "clearance is required before a live-context claim can release."
-                        ),
+                live_context_reviews[decision["claim"]] = st.selectbox(
+                    "Live-context human decision",
+                    ["PENDING", "APPROVE", "REJECT"],
+                    key=f"web-review-{i}",
+                    help=(
+                        "Search results are context, not authority. Explicit human "
+                        "clearance is required before a live-context claim can release."
+                    ),
+                )
+            elif decision["claim"] in live_skips:
+                reason = live_skips[decision["claim"]]
+                if reason == "STOPPED_AT_SOURCE_EVIDENCE_GATE":
+                    st.info(
+                        "SerpApi not called: this claim failed the Nutrient-derived "
+                        "source-evidence boundary and cannot be rescued by web search."
                     )
 
     ledger = build_audit_ledger(
@@ -285,6 +308,7 @@ if run_state:
         human_reviews=human_reviews,
         live_context_scans=live_scans,
         live_context_reviews=live_context_reviews,
+        live_context_skips=live_skips,
     )
 
     released = [
@@ -318,7 +342,8 @@ if run_state:
         st.code(
             f"Source SHA-256: {ledger['source']['sha256']}\n"
             f"DWS response SHA-256: {ledger['nutrient_dws']['response_sha256']}\n"
-            f"SerpApi live scans: {ledger['serpapi']['scan_count']}",
+            f"SerpApi live scans: {ledger['serpapi']['scan_count']}\n"
+            f"SerpApi skipped: {ledger['serpapi']['skip_count']}",
             language="text",
         )
         st.download_button(
