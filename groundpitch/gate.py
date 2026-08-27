@@ -65,7 +65,6 @@ def gate_claim(
     review_threshold: float = 0.28,
 ) -> ClaimDecision:
     claim = claim.strip()
-    corpus = " ".join(span.text for span in evidence_spans).lower()
 
     ranked = sorted(
         (
@@ -82,18 +81,43 @@ def gate_claim(
     top = ranked[:3]
     best_score = top[0].score if top else 0.0
 
-    numbers = _numbers(claim)
-    unsupported_numbers = [n for n in numbers if n.lower() not in corpus]
+    # Numbers and high-risk qualifiers must occur in evidence that is actually
+    # relevant to the claim. Merely appearing somewhere else in the document
+    # must not launder an assertion through the gate.
+    relevant_evidence = [
+        span.text
+        for span in top
+        if span.score >= review_threshold
+    ]
+    if not relevant_evidence and top:
+        relevant_evidence = [top[0].text]
 
-    risky = sorted({t for t in _tokens(claim) if t in RISKY_TERMS})
-    unsupported_risky = [term for term in risky if term not in corpus]
+    numbers = _numbers(claim)
+    unsupported_numbers = [
+        number
+        for number in numbers
+        if not any(number.lower() in text.lower() for text in relevant_evidence)
+    ]
+
+    risky = sorted({token for token in _tokens(claim) if token in RISKY_TERMS})
+    unsupported_risky = [
+        term
+        for term in risky
+        if not any(term in _tokens(text) for text in relevant_evidence)
+    ]
 
     if unsupported_numbers:
         disposition = "REJECT"
-        reason = "Claim contains numeric assertions absent from the extracted source."
+        reason = (
+            "Claim contains numeric assertions absent from the relevant extracted "
+            "source evidence."
+        )
     elif unsupported_risky:
         disposition = "REJECT"
-        reason = "Claim adds an absolute or superlative qualifier the source does not support."
+        reason = (
+            "Claim adds an absolute or superlative qualifier the relevant source "
+            "evidence does not support."
+        )
     elif best_score >= admit_threshold:
         disposition = "ADMIT"
         reason = "Claim is materially supported by extracted source evidence."
