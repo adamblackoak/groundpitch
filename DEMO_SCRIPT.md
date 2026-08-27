@@ -1,47 +1,51 @@
 # GroundPitch demo script
 
-Target: about 2 minutes 30 seconds.
+Target: about 2 minutes 45 seconds.
 
 ## 0:00 to 0:20
 
-“GroundPitch is marketing copy that cannot outrun its receipts. The problem is simple: generative systems can turn cautious source material into confident public claims without anyone noticing exactly where the extra certainty appeared.”
+“GroundPitch is marketing copy that cannot outrun its receipts. Generative systems can turn cautious source material into confident public claims without anyone noticing exactly where the extra certainty appeared.”
 
 ## 0:20 to 0:45
 
-Upload the sample product brief.
+Upload the sample product brief and enable the SerpApi live-context boundary.
 
-“This document is sent to Nutrient DWS. DWS is the core document operation here, not a side call. It extracts the page-indexed evidence that GroundPitch uses as its authority boundary.”
+“This document is sent to Nutrient DWS. DWS is the primary evidence boundary: it extracts the page-indexed source material that GroundPitch uses before any claim can release.”
 
 Click **Ground the claims**.
 
-## 0:45 to 1:20
+## 0:45 to 1:15
 
 Open the admitted throughput claim.
 
-“`Process up to 10,000 invoices per hour` is admitted because the DWS-derived source contains the same bounded benchmark claim. The receipt points back to the page and the supporting text.”
+“`Process up to 10,000 invoices per hour` is admitted because the DWS-derived source contains the same bounded benchmark claim. The receipt points back to the page and supporting text.”
 
 Open the pilot claim.
 
-“The 37 percent pilot result also stays qualified as a controlled pilot.”
+“The 37 percent result also stays qualified as a controlled pilot.”
 
-## 1:20 to 1:50
+## 1:15 to 1:45
 
 Open **The fastest invoice platform in Europe**.
 
-“This is rejected. The source says nothing about being fastest.”
+“This is rejected at the source-evidence boundary. SerpApi cannot rescue it: live search is deliberately unable to manufacture authority for a claim the source never supported.”
 
 Open **Guaranteed zero compliance errors**.
 
-“This is also rejected because GroundPitch will not allow an unsupported absolute qualifier to ride on top of otherwise plausible product copy.”
+“This is also rejected because an unsupported absolute cannot ride on top of otherwise plausible product copy.”
 
-## 1:50 to 2:15
+## 1:45 to 2:20
 
-Show the human review path if one claim is REVIEW.
+Open **Supports EU and UK deployments** and show its SerpApi live-context results.
 
-“Borderline support does not become an automatic yes. It enters a human review lane.”
+“This claim is supported by the internal document, but deployment availability is the sort of fact that can change. SerpApi supplies structured current public context, including the query, timestamp and result links. GroundPitch holds the claim until a human clears that second boundary.”
 
-## 2:15 to 2:30
+Approve or reject the live-context review.
+
+“Search is context, not a truth oracle. It can hold or downgrade a claim, never upgrade an unsupported one.”
+
+## 2:20 to 2:45
 
 Download the ledger.
 
-“The final artifact records the source hash, DWS response hash, evidence spans, gate reasons, human decisions and final release state. Candidate copy is not release authority.”
+“The final artifact records the source hash, DWS response hash, live-search response hashes, evidence spans, gate reasons, human decisions and final release state. Candidate copy is not release authority.”
