@@ -1,0 +1,18 @@
+{
+  "pages": [
+    {
+      "pageIndex": 0,
+      "plainText": "AsterFlow Product Brief. AsterFlow processes up to 10,000 invoices per hour in our benchmark. All exported reports include a SHA-256 audit hash. The platform supports EU and UK deployments.",
+      "structuredText": {"blocks": []},
+      "keyValuePairs": [],
+      "tables": []
+    },
+    {
+      "pageIndex": 1,
+      "plainText": "Pilot Results. In a controlled pilot, manual review time fell by 37%. The pilot covered 24 reviewers across three finance teams. No claim is made that the result will reproduce in every environment.",
+      "structuredText": {"blocks": []},
+      "keyValuePairs": [],
+      "tables": []
+    }
+  ]
+}
