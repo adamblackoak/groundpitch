@@ -10,7 +10,7 @@ Target: about 2 minutes 45 seconds.
 
 Upload the sample product brief and enable the SerpApi live-context boundary.
 
-“This document is sent to Nutrient DWS. DWS is the primary evidence boundary: it extracts the page-indexed source material that GroundPitch uses before any claim can release.”
+“This document is sent to Nutrient DWS. DWS is the primary evidence boundary: it extracts the page-indexed source material that GroundPitch uses before any claim can release. If that evidence does not support the claim, the claim stops here.”
 
 Click **Ground the claims**.
 
@@ -22,17 +22,17 @@ Open the admitted throughput claim.
 
 Open the pilot claim.
 
-“The 37 percent result also stays qualified as a controlled pilot.”
+“The 37 percent result also stays qualified as a controlled pilot. The support score is a heuristic evidence-match score, not a probability of truth.”
 
 ## 1:15 to 1:45
 
 Open **The fastest invoice platform in Europe**.
 
-“This is rejected at the source-evidence boundary. SerpApi cannot rescue it: live search is deliberately unable to manufacture authority for a claim the source never supported.”
+“This is rejected at the source-evidence boundary. Notice that SerpApi is not called at all. The stop is structural: live search is deliberately unable to manufacture authority for a claim the source never supported.”
 
 Open **Guaranteed zero compliance errors**.
 
-“This is also rejected because an unsupported absolute cannot ride on top of otherwise plausible product copy.”
+“This also stops at the first boundary because an unsupported absolute cannot ride on top of otherwise plausible product copy.”
 
 ## 1:45 to 2:20
 
@@ -48,4 +48,4 @@ Approve or reject the live-context review.
 
 Download the ledger.
 
-“The final artifact records the source hash, DWS response hash, live-search response hashes, evidence spans, gate reasons, human decisions and final release state. Candidate copy is not release authority.”
+“The final artifact records the source hash, DWS response hash, live-search response hashes, evidence spans, gate reasons, explicit search-skip reasons, human decisions and final release state. Candidate copy is not release authority.”
