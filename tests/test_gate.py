@@ -35,6 +35,18 @@ class GateTests(unittest.TestCase):
     def test_supported_deployment_claim_is_admitted(self):
         self.assertEqual(self.disposition("Supports EU and UK deployments."), "ADMIT")
 
+    def test_number_elsewhere_in_document_does_not_launder_claim(self):
+        self.assertEqual(
+            self.disposition("The platform supports 24 EU deployments."),
+            "REJECT",
+        )
+
+    def test_risky_term_elsewhere_in_document_does_not_launder_claim(self):
+        self.assertEqual(
+            self.disposition("The platform always supports EU deployments."),
+            "REJECT",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
