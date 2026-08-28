@@ -39,6 +39,18 @@ _LIVE_CONTEXT_PATTERNS = (
     r"\boperates?\b",
 )
 
+_SUBJECT_GENERIC_TERMS = {
+    "app",
+    "application",
+    "company",
+    "platform",
+    "product",
+    "service",
+    "software",
+    "solution",
+    "system",
+}
+
 
 class SerpApiError(RuntimeError):
     pass
@@ -58,10 +70,13 @@ class SearchResult:
 class LiveContextScan:
     claim: str
     query: str
+    subject: str | None
     checked_at_utc: str
     search_id: str | None
     search_status: str
     response_sha256: str
+    raw_result_count: int
+    relevant_result_count: int
     results: list[SearchResult]
 
     def to_dict(self) -> dict[str, Any]:
@@ -77,7 +92,9 @@ def build_search_query(claim: str, subject: str | None = None) -> str:
     claim = re.sub(r"\s+", " ", claim).strip()
     subject = re.sub(r"\s+", " ", subject or "").strip()
     if subject and subject.lower() not in claim.lower():
-        return f"{subject} {claim}"
+        # Quote the subject so a product/entity name cannot silently disappear
+        # from the search intent while generic claim words dominate the results.
+        return f'"{subject}" {claim}'
     return claim
 
 
@@ -121,6 +138,7 @@ def search_claim_context(
     return normalize_search_payload(
         claim=claim,
         query=query,
+        subject=subject,
         payload=payload,
         raw_response=response.content,
     )
@@ -131,16 +149,17 @@ def normalize_search_payload(
     claim: str,
     query: str,
     payload: dict[str, Any],
+    subject: str | None = None,
     raw_response: bytes | None = None,
 ) -> LiveContextScan:
     organic = payload.get("organic_results") or []
-    results: list[SearchResult] = []
+    candidates: list[SearchResult] = []
 
     for item in organic[:10]:
         if not isinstance(item, dict):
             continue
         link = str(item.get("link") or "")
-        results.append(
+        candidates.append(
             SearchResult(
                 position=_safe_int(item.get("position")),
                 title=str(item.get("title") or ""),
@@ -151,6 +170,16 @@ def normalize_search_payload(
             )
         )
 
+    clean_subject = re.sub(r"\s+", " ", subject or "").strip() or None
+    if clean_subject:
+        results = [
+            result
+            for result in candidates
+            if _result_matches_subject(result, clean_subject)
+        ]
+    else:
+        results = candidates
+
     metadata = payload.get("search_metadata") or {}
     if raw_response is None:
         raw_response = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode(
@@ -160,12 +189,38 @@ def normalize_search_payload(
     return LiveContextScan(
         claim=claim,
         query=query,
+        subject=clean_subject,
         checked_at_utc=datetime.now(timezone.utc).isoformat(),
         search_id=(str(metadata["id"]) if metadata.get("id") else None),
         search_status=str(metadata.get("status") or "Unknown"),
         response_sha256=hashlib.sha256(raw_response).hexdigest(),
+        raw_result_count=len(candidates),
+        relevant_result_count=len(results),
         results=results,
     )
+
+
+def _result_matches_subject(result: SearchResult, subject: str) -> bool:
+    terms = _subject_terms(subject)
+    if not terms:
+        return True
+
+    haystack = " ".join(
+        [result.title, result.snippet, result.domain, result.link]
+    ).lower()
+    matched = sum(1 for term in terms if term in haystack)
+    required = 1 if len(terms) == 1 else 2
+    return matched >= min(required, len(terms))
+
+
+def _subject_terms(subject: str) -> list[str]:
+    tokens = [
+        token
+        for token in re.findall(r"[a-z0-9]+", subject.lower())
+        if len(token) > 2
+    ]
+    specific = [token for token in tokens if token not in _SUBJECT_GENERIC_TERMS]
+    return specific or tokens
 
 
 def _domain(link: str) -> str:
