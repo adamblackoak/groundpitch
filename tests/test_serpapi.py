@@ -20,7 +20,7 @@ class SerpApiTests(unittest.TestCase):
     def test_builds_subject_aware_query(self):
         self.assertEqual(
             build_search_query("Supports EU deployments.", "AsterFlow"),
-            "AsterFlow Supports EU deployments.",
+            '"AsterFlow" Supports EU deployments.',
         )
 
     def test_normalizes_structured_results(self):
@@ -38,13 +38,38 @@ class SerpApiTests(unittest.TestCase):
         }
         scan = normalize_search_payload(
             claim="Supports EU and UK deployments.",
-            query="AsterFlow Supports EU and UK deployments.",
+            query='"AsterFlow" Supports EU and UK deployments.',
+            subject="AsterFlow",
             payload=payload,
         )
         self.assertEqual(scan.search_status, "Success")
+        self.assertEqual(scan.raw_result_count, 1)
+        self.assertEqual(scan.relevant_result_count, 1)
         self.assertEqual(scan.results[0].domain, "example.com")
         self.assertEqual(scan.results[0].position, 1)
         self.assertTrue(scan.response_sha256)
+
+    def test_filters_results_that_do_not_match_subject(self):
+        payload = {
+            "search_metadata": {"id": "abc", "status": "Success"},
+            "organic_results": [
+                {
+                    "position": 1,
+                    "title": "Thousands of British troops support NATO in Europe",
+                    "link": "https://example.com/troops",
+                    "snippet": "British forces will complete planned deployments.",
+                }
+            ],
+        }
+        scan = normalize_search_payload(
+            claim="Supports EU and UK deployments.",
+            query='"AsterFlow" Supports EU and UK deployments.',
+            subject="AsterFlow",
+            payload=payload,
+        )
+        self.assertEqual(scan.raw_result_count, 1)
+        self.assertEqual(scan.relevant_result_count, 0)
+        self.assertEqual(scan.results, [])
 
 
 if __name__ == "__main__":
