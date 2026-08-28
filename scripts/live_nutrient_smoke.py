@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from groundpitch.nutrient import extract_document, extract_page_texts
 
-root = Path(__file__).parents[1]
 key = os.getenv("NUTRIENT_API_KEY", "").strip()
 if not key:
     raise SystemExit("Set NUTRIENT_API_KEY before running this live smoke test.")
 
-source = root / "sample" / "product_brief.pdf"
+source = ROOT / "sample" / "product_brief.pdf"
 result = extract_document(
     file_bytes=source.read_bytes(),
     filename=source.name,
