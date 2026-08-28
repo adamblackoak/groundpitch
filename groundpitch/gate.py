@@ -81,16 +81,15 @@ def gate_claim(
     top = ranked[:3]
     best_score = top[0].score if top else 0.0
 
-    # Numbers and high-risk qualifiers must occur in evidence that is actually
-    # relevant to the claim. Merely appearing somewhere else in the document
-    # must not launder an assertion through the gate.
+    # Assertions such as numbers and superlatives must occur in evidence that is
+    # relevant for the surrounding claim independently of that assertion itself.
+    # This prevents a matching number (or risky word) elsewhere in the document
+    # from making an unrelated span appear relevant and laundering the claim.
     relevant_evidence = [
         span.text
-        for span in top
-        if span.score >= review_threshold
+        for span in evidence_spans
+        if _context_support_score(claim, span.text) >= review_threshold
     ]
-    if not relevant_evidence and top:
-        relevant_evidence = [top[0].text]
 
     numbers = _numbers(claim)
     unsupported_numbers = [
@@ -185,6 +184,19 @@ def _support_score(claim: str, evidence: str) -> float:
     return min(1.0, lexical + number_bonus + phrase_bonus)
 
 
+def _context_support_score(claim: str, evidence: str) -> float:
+    """Semantic overlap excluding assertion tokens that need independent support."""
+    c = _context_tokens(claim)
+    e = _context_tokens(evidence)
+    if not c or not e:
+        return 0.0
+
+    intersection = len(c & e)
+    precision = intersection / len(c)
+    recall = intersection / len(e)
+    return (2 * precision * recall / (precision + recall)) if precision + recall else 0.0
+
+
 def _tokens(text: str) -> list[str]:
     return re.findall(r"[a-z0-9%£$€.-]+", text.lower())
 
@@ -194,6 +206,14 @@ def _content_tokens(text: str) -> set[str]:
         token
         for token in _tokens(text)
         if token not in STOPWORDS and len(token) > 1
+    }
+
+
+def _context_tokens(text: str) -> set[str]:
+    return {
+        token
+        for token in _content_tokens(text)
+        if token not in RISKY_TERMS and not any(char.isdigit() for char in token)
     }
 
 
