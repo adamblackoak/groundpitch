@@ -17,6 +17,9 @@ from groundpitch.serpapi import (
 )
 
 
+REVIEW_THRESHOLD = 0.28
+
+
 def _infer_subject(pages: list[dict], filename: str) -> str:
     if pages:
         text = str(pages[0].get("text", "")).strip()
@@ -76,7 +79,10 @@ with st.sidebar:
         "Web-search subject/entity (optional)",
         value="",
         disabled=not use_serpapi,
-        help="For example a product or company name. If blank, GroundPitch infers one from the source.",
+        help=(
+            "For example a product or company name. If blank, GroundPitch infers one "
+            "from the source and discards search results that do not match it."
+        ),
     )
     force_all_web = st.checkbox(
         "Web-check every eligible claim",
@@ -246,10 +252,20 @@ if run_state:
                 )
 
             st.markdown("**Source receipts — Nutrient DWS**")
-            for evidence in decision["evidence"]:
-                st.markdown(
-                    f"- Page {int(evidence['page_index']) + 1}, support "
-                    f"{evidence['score']:.2f}: {evidence['text']}"
+            relevant_receipts = [
+                evidence
+                for evidence in decision["evidence"]
+                if float(evidence["score"]) >= REVIEW_THRESHOLD
+            ]
+            if relevant_receipts:
+                for evidence in relevant_receipts:
+                    st.markdown(
+                        f"- Page {int(evidence['page_index']) + 1}, support "
+                        f"{evidence['score']:.2f}: {evidence['text']}"
+                    )
+            else:
+                st.caption(
+                    "No extracted source span reached the human-review support threshold."
                 )
 
             if disposition == "REVIEW":
@@ -266,6 +282,10 @@ if run_state:
                     f"Query: {scan['query']} · status: {scan['search_status']} · "
                     f"checked: {scan['checked_at_utc']}"
                 )
+                st.caption(
+                    f"Subject relevance: {scan['relevant_result_count']} of "
+                    f"{scan['raw_result_count']} organic result(s) retained"
+                )
 
                 if scan["results"]:
                     for result in scan["results"][:5]:
@@ -276,19 +296,31 @@ if run_state:
                             st.markdown(f"- [{title}]({link}) — {snippet}")
                         else:
                             st.markdown(f"- **{title}** — {snippet}")
+                elif scan["raw_result_count"]:
+                    st.warning(
+                        f"SerpApi returned {scan['raw_result_count']} organic result(s), "
+                        f"but none matched the search subject {scan['subject']!r}. "
+                        "GroundPitch excludes them from live evidence."
+                    )
                 else:
                     st.warning(
                         "SerpApi returned no organic results. Absence of search evidence "
                         "is not evidence that the claim is false."
                     )
 
+                review_options = (
+                    ["PENDING", "APPROVE", "REJECT"]
+                    if scan["results"]
+                    else ["PENDING", "REJECT"]
+                )
                 live_context_reviews[decision["claim"]] = st.selectbox(
                     "Live-context human decision",
-                    ["PENDING", "APPROVE", "REJECT"],
+                    review_options,
                     key=f"web-review-{i}",
                     help=(
                         "Search results are context, not authority. Explicit human "
-                        "clearance is required before a live-context claim can release."
+                        "clearance is required before a live-context claim can release. "
+                        "Approval is unavailable when no subject-relevant result survives."
                     ),
                 )
             elif decision["claim"] in live_skips:
