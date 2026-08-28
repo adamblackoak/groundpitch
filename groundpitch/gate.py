@@ -127,9 +127,10 @@ def gate_claim(
         disposition = "REJECT"
         reason = "No sufficiently close source evidence was found."
 
+    # This field is a source-support score only. Do not inflate it to express
+    # confidence in a rejection rule; that would conflate evidential support
+    # with policy certainty in the UI and audit ledger.
     confidence = min(1.0, max(0.0, best_score))
-    if disposition == "REJECT" and (unsupported_numbers or unsupported_risky):
-        confidence = max(confidence, 0.95)
 
     return ClaimDecision(
         claim=claim,
