@@ -73,6 +73,28 @@ class SerpApiTests(unittest.TestCase):
         self.assertEqual(scan.relevant_result_count, 0)
         self.assertEqual(scan.results, [])
 
+    def test_does_not_match_product_name_by_substring(self):
+        payload = {
+            "search_metadata": {"id": "abc", "status": "Success"},
+            "organic_results": [
+                {
+                    "position": 1,
+                    "title": "MasterFlow 9500 launches in UK",
+                    "link": "https://example.com/masterflow",
+                    "snippet": "MasterFlow is used in offshore wind grout applications.",
+                }
+            ],
+        }
+        scan = normalize_search_payload(
+            claim="Supports EU and UK deployments.",
+            query='"AsterFlow" Supports EU and UK deployments.',
+            subject="AsterFlow",
+            payload=payload,
+        )
+        self.assertEqual(scan.raw_result_count, 1)
+        self.assertEqual(scan.relevant_result_count, 0)
+        self.assertEqual(scan.results, [])
+
     @patch("groundpitch.serpapi.requests.get")
     def test_no_results_error_becomes_reviewable_empty_scan(self, mock_get):
         response = Mock()
