@@ -1,9 +1,11 @@
 import unittest
+from unittest.mock import Mock, patch
 
 from groundpitch.serpapi import (
     build_search_query,
     claim_requires_live_context,
     normalize_search_payload,
+    search_claim_context,
 )
 
 
@@ -70,6 +72,30 @@ class SerpApiTests(unittest.TestCase):
         self.assertEqual(scan.raw_result_count, 1)
         self.assertEqual(scan.relevant_result_count, 0)
         self.assertEqual(scan.results, [])
+
+    @patch("groundpitch.serpapi.requests.get")
+    def test_no_results_error_becomes_reviewable_empty_scan(self, mock_get):
+        response = Mock()
+        response.ok = True
+        response.json.return_value = {
+            "search_metadata": {"id": "no-results-1"},
+            "error": "Google hasn't returned any results for this query.",
+        }
+        response.content = b'{"error":"Google hasn\'t returned any results for this query."}'
+        mock_get.return_value = response
+
+        scan = search_claim_context(
+            claim="Supports EU and UK deployments.",
+            subject="AsterFlow",
+            api_key="test-key",
+        )
+
+        self.assertEqual(scan.search_status, "No organic results")
+        self.assertEqual(scan.raw_result_count, 0)
+        self.assertEqual(scan.relevant_result_count, 0)
+        self.assertEqual(scan.results, [])
+        self.assertEqual(scan.search_id, "no-results-1")
+        self.assertTrue(scan.response_sha256)
 
 
 if __name__ == "__main__":
