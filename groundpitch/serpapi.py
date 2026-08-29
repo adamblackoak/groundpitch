@@ -131,9 +131,6 @@ def search_claim_context(
         raise SerpApiError("SerpApi did not return JSON.") from exc
 
     error_text = str(payload.get("error") or "").strip()
-    # SerpApi can report a genuine successful API call with no organic results
-    # as an error-shaped response. That is a valid live-context outcome and must
-    # remain reviewable rather than aborting the entire GroundPitch run.
     if error_text:
         normalized_error = error_text.lower()
         no_results = (
@@ -221,16 +218,26 @@ def normalize_search_payload(
 
 
 def _result_matches_subject(result: SearchResult, subject: str) -> bool:
-    terms = _subject_terms(subject)
-    if not terms:
+    normalized_subject = _normalize_subject_text(subject)
+    haystack = _normalize_subject_text(
+        " ".join([result.title, result.snippet, result.domain, result.link])
+    )
+
+    # A specific product/entity name should match as a contiguous normalized
+    # phrase. This prevents AsterFlow from matching unrelated MasterFlow results.
+    if normalized_subject and normalized_subject in haystack:
         return True
 
-    haystack = " ".join(
-        [result.title, result.snippet, result.domain, result.link]
-    ).lower()
-    matched = sum(1 for term in terms if term in haystack)
-    required = 1 if len(terms) == 1 else 2
-    return matched >= min(required, len(terms))
+    terms = _subject_terms(subject)
+    if not terms or len(terms) == 1:
+        return False
+
+    haystack_terms = set(haystack.split())
+    return all(term in haystack_terms for term in terms)
+
+
+def _normalize_subject_text(text: str) -> str:
+    return " ".join(re.findall(r"[a-z0-9]+", text.lower()))
 
 
 def _subject_terms(subject: str) -> list[str]:
