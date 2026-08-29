@@ -218,27 +218,34 @@ def normalize_search_payload(
 
 
 def _result_matches_subject(result: SearchResult, subject: str) -> bool:
-    normalized_subject = _normalize_subject_text(subject)
-    # Only judge subject relevance from actual result content/host. Google
-    # redirect/result URLs can contain the original query and therefore must
-    # never be treated as evidence that the destination matches the subject.
-    haystack = _normalize_subject_text(
+    # Judge subject relevance from actual result content/host only. Never use the
+    # result URL because search-engine redirects can contain the original query.
+    haystack_tokens = _normalize_subject_tokens(
         " ".join([result.title, result.snippet, result.domain])
     )
-
-    if normalized_subject and normalized_subject in haystack:
+    subject_tokens = _normalize_subject_tokens(subject)
+    if not subject_tokens:
         return True
 
-    terms = _subject_terms(subject)
-    if not terms or len(terms) == 1:
-        return False
+    # A single product/entity name must match as an exact token. This prevents
+    # AsterFlow from matching MasterFlow merely because AsterFlow is a substring.
+    if len(subject_tokens) == 1:
+        return subject_tokens[0] in set(haystack_tokens)
 
-    haystack_terms = set(haystack.split())
-    return all(term in haystack_terms for term in terms)
+    # Multi-token entities require the full token sequence to occur contiguously.
+    window = len(subject_tokens)
+    return any(
+        haystack_tokens[index : index + window] == subject_tokens
+        for index in range(0, len(haystack_tokens) - window + 1)
+    )
 
 
 def _normalize_subject_text(text: str) -> str:
     return " ".join(re.findall(r"[a-z0-9]+", text.lower()))
+
+
+def _normalize_subject_tokens(text: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+", text.lower())
 
 
 def _subject_terms(subject: str) -> list[str]:
