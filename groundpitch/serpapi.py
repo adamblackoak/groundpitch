@@ -219,12 +219,13 @@ def normalize_search_payload(
 
 def _result_matches_subject(result: SearchResult, subject: str) -> bool:
     normalized_subject = _normalize_subject_text(subject)
+    # Only judge subject relevance from actual result content/host. Google
+    # redirect/result URLs can contain the original query and therefore must
+    # never be treated as evidence that the destination matches the subject.
     haystack = _normalize_subject_text(
-        " ".join([result.title, result.snippet, result.domain, result.link])
+        " ".join([result.title, result.snippet, result.domain])
     )
 
-    # A specific product/entity name should match as a contiguous normalized
-    # phrase. This prevents AsterFlow from matching unrelated MasterFlow results.
     if normalized_subject and normalized_subject in haystack:
         return True
 
