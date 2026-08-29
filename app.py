@@ -20,6 +20,15 @@ from groundpitch.serpapi import (
 REVIEW_THRESHOLD = 0.28
 
 
+def _repair_split_camel_tokens(text: str) -> str:
+    """Join PDF line-wrap artefacts such as 'AsterF low' -> 'AsterFlow'."""
+    return re.sub(
+        r"\b(?=[A-Za-z0-9]*[a-z])([A-Za-z0-9]*[A-Z])\s+([a-z]{2,})\b",
+        r"\1\2",
+        text,
+    )
+
+
 def _infer_subject(pages: list[dict], filename: str) -> str:
     if pages:
         text = str(pages[0].get("text", "")).strip()
@@ -31,6 +40,15 @@ def _infer_subject(pages: list[dict], filename: str) -> str:
                 first,
                 flags=re.I,
             )
+            first = _repair_split_camel_tokens(first)
+            # Prefer the leading product/entity phrase rather than carrying
+            # extraction boilerplate or a repeated sentence into the search.
+            first = re.split(
+                r"\b(?:process(?:es)?|supports?|includes?|provides?|offers?|is|are)\b",
+                first,
+                maxsplit=1,
+                flags=re.I,
+            )[0].strip()
             first = re.sub(r"\s+", " ", first).strip(" -:")
             if 2 <= len(first) <= 100:
                 return first
