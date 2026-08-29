@@ -92,8 +92,6 @@ def build_search_query(claim: str, subject: str | None = None) -> str:
     claim = re.sub(r"\s+", " ", claim).strip()
     subject = re.sub(r"\s+", " ", subject or "").strip()
     if subject and subject.lower() not in claim.lower():
-        # Quote the subject so a product/entity name cannot silently disappear
-        # from the search intent while generic claim words dominate the results.
         return f'"{subject}" {claim}'
     return claim
 
@@ -132,8 +130,29 @@ def search_claim_context(
     except ValueError as exc:
         raise SerpApiError("SerpApi did not return JSON.") from exc
 
-    if payload.get("error"):
-        raise SerpApiError(f"SerpApi error: {payload['error']}")
+    error_text = str(payload.get("error") or "").strip()
+    # SerpApi can report a genuine successful API call with no organic results
+    # as an error-shaped response. That is a valid live-context outcome and must
+    # remain reviewable rather than aborting the entire GroundPitch run.
+    if error_text:
+        normalized_error = error_text.lower()
+        no_results = (
+            "hasn't returned any results" in normalized_error
+            or "has not returned any results" in normalized_error
+            or normalized_error == "google hasn't returned any results for this query."
+        )
+        if not no_results:
+            raise SerpApiError(f"SerpApi error: {error_text}")
+
+        metadata = payload.get("search_metadata") or {}
+        return normalize_search_payload(
+            claim=claim,
+            query=query,
+            subject=subject,
+            payload={"search_metadata": metadata, "organic_results": []},
+            raw_response=response.content,
+            search_status_override="No organic results",
+        )
 
     return normalize_search_payload(
         claim=claim,
@@ -151,6 +170,7 @@ def normalize_search_payload(
     payload: dict[str, Any],
     subject: str | None = None,
     raw_response: bytes | None = None,
+    search_status_override: str | None = None,
 ) -> LiveContextScan:
     organic = payload.get("organic_results") or []
     candidates: list[SearchResult] = []
@@ -192,7 +212,7 @@ def normalize_search_payload(
         subject=clean_subject,
         checked_at_utc=datetime.now(timezone.utc).isoformat(),
         search_id=(str(metadata["id"]) if metadata.get("id") else None),
-        search_status=str(metadata.get("status") or "Unknown"),
+        search_status=search_status_override or str(metadata.get("status") or "Unknown"),
         response_sha256=hashlib.sha256(raw_response).hexdigest(),
         raw_result_count=len(candidates),
         relevant_result_count=len(results),
