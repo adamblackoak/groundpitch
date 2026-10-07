@@ -36,6 +36,8 @@ GroundPitch therefore uses SerpApi as a **live-context boundary** for claims who
 
 This preserves a simple control principle: **internal evidence establishes authority; live web data tests whether that authority may have become stale or externally contestable.**
 
+GroundPitch is listed in SerpApi's [#BuiltWithSerpApi Google Search API showcase](https://serpapi.github.io/BuiltWithSerpApi/apis/google-search-api/) as an external community showcase entry.
+
 ## Architecture
 
 ```text
