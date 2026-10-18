@@ -3,6 +3,7 @@
 Streamlit AppTest uses the checked-in Nutrient fixture and no external APIs.
 A review selection must be scoped to its originating run for both lanes.
 """
+import unittest
 from pathlib import Path
 
 from streamlit.testing.v1 import AppTest
@@ -36,41 +37,42 @@ def _fake_live_scan():
     }
 
 
-def test_ui_source_approval_does_not_transfer_to_next_run():
-    app = _start_offline_app()
-    first = app.session_state["gp_run"]["run_id"]
-    assert app.selectbox[0].value == "PENDING"
-    app.selectbox[0].set_value("APPROVE").run()
-    assert not app.exception
-    assert app.selectbox[0].value == "APPROVE"
+class UIIsolationTests(unittest.TestCase):
+    def test_ui_source_approval_does_not_transfer_to_next_run(self):
+        app = _start_offline_app()
+        first = app.session_state["gp_run"]["run_id"]
+        assert app.selectbox[0].value == "PENDING"
+        app.selectbox[0].set_value("APPROVE").run()
+        assert not app.exception
+        assert app.selectbox[0].value == "APPROVE"
 
-    # Same row, different claim: old position-based keys leaked APPROVE here.
-    app.text_area[0].set_value("Manual review time fell by 37% in a controlled pilot.").run()
-    app.button[0].click().run()
-    assert not app.exception
-    assert app.session_state["gp_run"]["run_id"] != first
-    assert len(app.selectbox) >= 1
-    assert app.selectbox[0].value == "PENDING"
+        # Same row, different claim: old position-based keys leaked APPROVE here.
+        app.text_area[0].set_value("Manual review time fell by 37% in a controlled pilot.").run()
+        app.button[0].click().run()
+        assert not app.exception
+        assert app.session_state["gp_run"]["run_id"] != first
+        assert len(app.selectbox) >= 1
+        assert app.selectbox[0].value == "PENDING"
 
 
-def test_ui_live_approval_does_not_transfer_between_runs():
-    app = _start_offline_app()
-    state = dict(app.session_state["gp_run"])
-    state["live_scans"] = {CLAIM: _fake_live_scan()}
-    app.session_state["gp_run"] = state
-    app.run()
-    assert not app.exception
-    assert len(app.selectbox) == 2
-    assert [w.value for w in app.selectbox] == ["PENDING", "PENDING"]
+    def test_ui_live_approval_does_not_transfer_between_runs(self):
+        app = _start_offline_app()
+        state = dict(app.session_state["gp_run"])
+        state["live_scans"] = {CLAIM: _fake_live_scan()}
+        app.session_state["gp_run"] = state
+        app.run()
+        assert not app.exception
+        assert len(app.selectbox) == 2
+        assert [w.value for w in app.selectbox] == ["PENDING", "PENDING"]
 
-    app.selectbox[0].set_value("APPROVE").run()
-    app.selectbox[1].set_value("APPROVE").run()
-    assert not app.exception
-    assert [w.value for w in app.selectbox] == ["APPROVE", "APPROVE"]
+        app.selectbox[0].set_value("APPROVE").run()
+        app.selectbox[1].set_value("APPROVE").run()
+        assert not app.exception
+        assert [w.value for w in app.selectbox] == ["APPROVE", "APPROVE"]
 
-    next_run = dict(app.session_state["gp_run"])
-    next_run["run_id"] = "different-run-id"
-    app.session_state["gp_run"] = next_run
-    app.run()
-    assert not app.exception
-    assert [w.value for w in app.selectbox] == ["PENDING", "PENDING"]
+        next_run = dict(app.session_state["gp_run"])
+        next_run["run_id"] = "different-run-id"
+        app.session_state["gp_run"] = next_run
+        app.run()
+        assert not app.exception
+        assert [w.value for w in app.selectbox] == ["PENDING", "PENDING"]
