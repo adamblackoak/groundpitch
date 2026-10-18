@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime, timezone
 from typing import Any
+from .serpapi import claim_requires_live_context
 
 
 def sha256_bytes(data: bytes) -> str:
@@ -27,10 +28,10 @@ def build_audit_ledger(
     live_context_skips = live_context_skips or {}
     finalized = []
 
-    for decision in decisions:
+    for index, decision in enumerate(decisions):
         item = dict(decision)
         claim = item["claim"]
-        human = human_reviews.get(claim, "NOT_REQUIRED")
+        human = human_reviews.get(f"{index}:{claim}", "PENDING")
         live_scan = live_context_scans.get(claim)
         live_skip = live_context_skips.get(claim)
         live_review = (
@@ -44,25 +45,23 @@ def build_audit_ledger(
         item["live_context_review"] = live_review
         item["live_context_skip_reason"] = live_skip
 
+        item["freshness_review_required"] = claim_requires_live_context(claim)
         if item["disposition"] == "REJECT":
             final = "REJECT"
-        elif item["disposition"] == "REVIEW" and human != "APPROVE":
-            final = "REJECT_BY_HUMAN_REVIEW" if human == "REJECT" else "HOLD"
+        elif human == "REJECT":
+            final = "REJECT_BY_HUMAN_REVIEW"
+        elif human != "APPROVE":
+            final = "HOLD_SOURCE_REVIEW"
+        elif item["freshness_review_required"] and (
+            not live_scan or not live_scan.get("results") or not live_scan.get("relevant_result_count", 0)
+        ):
+            final = "HOLD_FRESHNESS_NOT_VERIFIED"
+        elif live_scan and live_review == "REJECT":
+            final = "REJECT_BY_LIVE_CONTEXT_REVIEW"
+        elif live_scan and live_review != "APPROVE":
+            final = "HOLD_LIVE_CONTEXT"
         else:
-            final = (
-                "ADMIT_BY_HUMAN_REVIEW"
-                if item["disposition"] == "REVIEW"
-                else "ADMIT"
-            )
-
-            # Live public context is a second release boundary. Search results
-            # never create authority; when a live scan was required and run,
-            # a human must explicitly clear it before release.
-            if live_scan:
-                if live_review == "REJECT":
-                    final = "REJECT_BY_LIVE_CONTEXT_REVIEW"
-                elif live_review != "APPROVE":
-                    final = "HOLD_LIVE_CONTEXT"
+            final = "ADMIT_BY_HUMAN_REVIEW"
 
         item["final_disposition"] = final
         finalized.append(item)
@@ -82,8 +81,8 @@ def build_audit_ledger(
             "instructions": nutrient_instructions,
             "response_sha256": nutrient_response_sha256,
             "role": (
-                "Primary evidence boundary. GroundPitch gates claim release against "
-                "the source-grounded evidence extracted by Nutrient DWS."
+                "Primary extraction input for provisional lexical screening; "
+                "not semantic or publication authority."
             ),
         },
         "serpapi": {
@@ -102,9 +101,8 @@ def build_audit_ledger(
         },
         "claims": finalized,
         "release_rule": (
-            "A claim must first satisfy the Nutrient-derived source-evidence gate. "
-            "Claims rejected there stop before SerpApi. If live public context is "
-            "required and scanned, it must also be explicitly cleared by a human. "
-            "SerpApi evidence cannot turn a source-unsupported claim into an admitted claim."
+            "Every non-rejected claim requires demonstration reviewer selection. "
+            "Time-dependent claims additionally require relevant live results and review. "
+            "Neither UI approval nor lexical scoring establishes truth or publication authority."
         ),
     }
