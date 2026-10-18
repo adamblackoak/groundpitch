@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
 from pathlib import Path
+from uuid import uuid4
 
 import streamlit as st
 
 from groundpitch.audit import build_audit_ledger
 from groundpitch.gate import gate_claims
+from groundpitch.review_keys import review_widget_key
 from groundpitch.nutrient import NutrientError, extract_document, extract_page_texts
 from groundpitch.serpapi import (
     SerpApiError,
@@ -58,7 +61,7 @@ def _infer_subject(pages: list[dict], filename: str) -> str:
 
 st.set_page_config(page_title="GroundPitch", page_icon="🧾", layout="wide")
 st.title("GroundPitch")
-st.caption("Marketing copy that cannot outrun its receipts.")
+st.caption("Experimental lexical screening; no UI approval certifies truth or publication authority.")
 st.markdown(
     "**Two evidence boundaries:** Nutrient DWS establishes source support first; "
     "SerpApi checks current public context only for claims that survive that gate."
@@ -138,6 +141,7 @@ claims_text = st.text_area(
 run = st.button("3. Ground the claims", type="primary")
 
 if run:
+    st.session_state.pop('gp_run', None)
     if uploaded is None and not offline:
         st.error("Upload a source document first.")
         st.stop()
@@ -215,6 +219,8 @@ if run:
                 st.stop()
 
     st.session_state["gp_run"] = {
+        "run_id": uuid4().hex,
+        "source_sha256": hashlib.sha256(file_bytes).hexdigest(),
         "file_bytes": file_bytes,
         "filename": filename,
         "response_sha": response_sha,
@@ -286,11 +292,15 @@ if run_state:
                     "No extracted source span reached the human-review support threshold."
                 )
 
-            if disposition == "REVIEW":
-                human_reviews[decision["claim"]] = st.selectbox(
-                    "Source-evidence human decision",
+            if disposition in {"ADMIT", "REVIEW"}:
+                human_reviews[f"{i}:{decision['claim']}"] = st.selectbox(
+                    "Demonstration reviewer decision (not factual verification)",
                     ["PENDING", "APPROVE", "REJECT"],
-                    key=f"review-{i}",
+                    key=review_widget_key(
+                        run_id=run_state["run_id"], source_sha256=run_state["source_sha256"],
+                        extraction_sha256=run_state["response_sha"], claim=decision["claim"],
+                        index=i, lane="source",
+                    ),
                 )
 
             scan = live_scans.get(decision["claim"])
@@ -334,7 +344,11 @@ if run_state:
                 live_context_reviews[decision["claim"]] = st.selectbox(
                     "Live-context human decision",
                     review_options,
-                    key=f"web-review-{i}",
+                    key=review_widget_key(
+                        run_id=run_state["run_id"], source_sha256=run_state["source_sha256"],
+                        extraction_sha256=run_state["response_sha"], claim=decision["claim"],
+                        index=i, lane="live",
+                    ),
                     help=(
                         "Search results are context, not authority. Explicit human "
                         "clearance is required before a live-context claim can release. "
@@ -364,18 +378,18 @@ if run_state:
     released = [
         item["claim"]
         for item in ledger["claims"]
-        if item["final_disposition"] in {"ADMIT", "ADMIT_BY_HUMAN_REVIEW"}
+        if item["final_disposition"] == "ADMIT_BY_HUMAN_REVIEW"
     ]
 
     held = [
         item
         for item in ledger["claims"]
-        if item["final_disposition"] in {"HOLD", "HOLD_LIVE_CONTEXT"}
+        if item["final_disposition"].startswith("HOLD")
     ]
 
     left, right = st.columns(2)
     with left:
-        st.subheader("Released copy")
+        st.subheader("Demo reviewer-cleared candidates — not authorised publication")
         if released:
             for claim in released:
                 st.success(claim)

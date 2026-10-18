@@ -1,12 +1,12 @@
 # GroundPitch
 
-**Marketing copy that cannot outrun its receipts.**
+**Experimental evidence-screening demonstrator.** Lexical screening and demo UI approval are not semantic verification or publication authority.
 
 GroundPitch turns product, technical and compliance documents into an evidence boundary for marketing claims.
 
 A source document goes through **Nutrient DWS** first. GroundPitch then tests candidate claims against the extracted evidence, attaches page-level receipts, and gives every claim one of three dispositions:
 
-- **ADMIT** — evidence is strong enough to release the claim.
+- **ADMIT** — a lexical candidate; not independent source support or publication authority.
 - **REVIEW** — some support exists, but a human must decide.
 - **REJECT** — the claim outruns the evidence, including unsupported numbers or absolute qualifiers.
 
@@ -148,3 +148,8 @@ GroundPitch does **not** claim that lexical evidence matching or search-engine r
 ## License
 
 MIT.
+
+
+## Post-competition limits (18 October 2026)
+
+Every non-rejected candidate requires a fresh demonstration reviewer decision. Time-dependent candidates require a relevant live scan and separate review; lack of a scan is a hold, not clearance. Reviewer widget decisions are tied to the source, extraction, claim, lane and run, but do not authenticate a reviewer or establish factual support. This is not a production release system.
