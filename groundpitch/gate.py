@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import asdict, dataclass
 from typing import Iterable
+from .validation import numeric_assertions, potential_negation_conflict
 
 STOPWORDS = {
     "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "has",
@@ -91,12 +92,12 @@ def gate_claim(
         if _context_support_score(claim, span.text) >= review_threshold
     ]
 
-    numbers = _numbers(claim)
-    unsupported_numbers = [
-        number
-        for number in numbers
-        if not any(number.lower() in text.lower() for text in relevant_evidence)
-    ]
+    asserted_numbers = numeric_assertions(claim)
+    unsupported_numbers = (
+        [] if not asserted_numbers or any(asserted_numbers.issubset(numeric_assertions(text)) for text in relevant_evidence)
+        else sorted(asserted_numbers)
+    )
+    polarity_risk = any(potential_negation_conflict(claim, span.text) for span in top if span.score >= review_threshold)
 
     risky = sorted({token for token in _tokens(claim) if token in RISKY_TERMS})
     unsupported_risky = [
@@ -117,9 +118,12 @@ def gate_claim(
             "Claim adds an absolute or superlative qualifier the relevant source "
             "evidence does not support."
         )
+    elif polarity_risk:
+        disposition = "REVIEW"
+        reason = "Potential polarity conflict; explicit human review required."
     elif best_score >= admit_threshold:
         disposition = "ADMIT"
-        reason = "Claim is materially supported by extracted source evidence."
+        reason = "Lexical screening candidate; semantic support unverified."
     elif best_score >= review_threshold:
         disposition = "REVIEW"
         reason = "Some support exists, but the claim needs a human decision before release."
@@ -167,10 +171,10 @@ def _support_score(claim: str, evidence: str) -> float:
     recall = intersection / len(e)
     lexical = (2 * precision * recall / (precision + recall)) if precision + recall else 0.0
 
-    claim_numbers = _numbers(claim)
+    claim_numbers = numeric_assertions(claim)
     number_bonus = 0.0
     if claim_numbers:
-        matched = sum(1 for n in claim_numbers if n.lower() in evidence.lower())
+        matched = len(claim_numbers & numeric_assertions(evidence))
         number_bonus = 0.18 * (matched / len(claim_numbers))
 
     phrase_bonus = 0.0
@@ -186,7 +190,7 @@ def _support_score(claim: str, evidence: str) -> float:
 
 
 def _context_support_score(claim: str, evidence: str) -> float:
-    """Semantic overlap excluding assertion tokens that need independent support."""
+    """Lexical overlap excluding assertion tokens that need independent support."""
     c = _context_tokens(claim)
     e = _context_tokens(evidence)
     if not c or not e:
